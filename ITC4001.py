@@ -2,29 +2,35 @@ from datetime import datetime
 import pyvisa as visa
 
 
-class VISAInstrument:
+class ITC4001:
     manufacturer = 'USTC'
     model = 'VISAInstrument'
 
-    def __init__(self, resourceID, timeout=5000, channel=1):
+    def __init__(self, resourceID: str, timeout: int, reset: bool):
         self.resourceID = resourceID
-        self.channelCount = channel
         # connect
         try:
             self.resource = visa.ResourceManager().open_resource(resourceID)
             self.resource.timeout = timeout
         except BaseException as e:
-            print('Error in open device ID: {}'.format(id), e)
-        # reset
-        self.resource.write("*RST")
+            print('Error in open device at: {}'.format(resourceID), e)
         # instrument infomation
         print(datetime.now(), self.query("*IDN?").strip().replace(",", " "), "connected.")
+        # reset
+        if reset:
+            self.resource.write("*RST")
 
-    def write(self, command):
+    def write(self, command: str):
         return self.resource.write(command)
 
-    def query(self, command):
+    def query(self, command: str):
         return self.resource.query(command)
+
+    def command(self, command: str):
+        if command.endswith("?"):
+            return self.query(command)
+        else:
+            return self.write(command)
 
     def print_info(self):
         # print instrument info
@@ -35,3 +41,13 @@ class VISAInstrument:
         print(datetime.now(), "instrument firmware revision:", revision[0])
         print(datetime.now(), "front panel board firmware revision:", revision[1])
         print(datetime.now(), "temperature controller board firmware revision:", revision[2])
+
+    def set_temp(self, temp: float):
+        # set TEC temperature
+        self.write("SOUR2:TEMP " + str(temp) + "C")
+        # query TEC temperature
+        res = self.query("SOUR2:TEMP?")
+        if abs(float(res) - temp) < 0.0005:
+            # set succeed
+            return True
+        return False
